@@ -69,10 +69,13 @@ describe("Validation: Health Check", () => {
         const response = await fetch(
             `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe`,
         );
-        const data = await response.json();
+        const data = (await response.json()) as {
+            ok?: boolean;
+            result?: { id?: number };
+        };
 
         expect(response.status).toBe(200);
         expect(data.ok).toBe(true);
-        expect(data.result.id).toBeDefined();
+        expect(data.result?.id).toBeDefined();
     });
 });
