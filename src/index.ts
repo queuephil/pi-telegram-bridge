@@ -1,48 +1,48 @@
-import { Telegraf } from "telegraf";
-import { parseAllowedUsers, requireEnv } from "./env";
-import { sendRpcCommandToPi } from "./pi-rpc-client";
-import { createTelegramBridge } from "./telegram-bridge";
+import { parseAllowedUsers, readOptionalNumberEnv, requireEnv } from "./env";
+import { startJobs } from "./jobs";
+import { createFetchHackerNewsJob } from "./jobs/fetch-hacker-news";
+import { startPiBridge } from "./pi";
+import { createTelegramService } from "./telegram";
 
-const telegramBotToken = requireEnv("TELEGRAM_BOT_TOKEN");
+const botToken = requireEnv("TELEGRAM_BOT_TOKEN");
 const allowedUsers = parseAllowedUsers(requireEnv("ALLOWED_USERS"));
 
-const bot = new Telegraf(telegramBotToken);
+const defaultChatId = readOptionalNumberEnv("TELEGRAM_CHAT_ID");
+const jobsEnabledFlag = process.env.JOBS_ENABLED?.trim();
+const jobsEnabled = jobsEnabledFlag !== "false" && defaultChatId !== undefined;
+const jobIntervalMinutes =
+  readOptionalNumberEnv("FETCH_HN_INTERVAL_MINUTES") ?? 1440;
 
-const bridge = createTelegramBridge({
-    allowedUsers,
-    telegramBot: {
-        on: (event, handler) => {
-            bot.on(event, async (ctx) => {
-                if (!("text" in ctx.message)) {
-                    return;
-                }
-
-                await handler({
-                    message: {
-                        text: ctx.message.text,
-                        chat: { id: ctx.chat.id },
-                        from: ctx.from ? { id: ctx.from.id } : undefined,
-                    },
-                });
-            });
-        },
-        telegram: {
-            sendMessage: (chatId, text) =>
-                bot.telegram.sendMessage(chatId, text),
-        },
-    },
-    sendRpcCommand: sendRpcCommandToPi,
+const telegram = createTelegramService({
+  botToken,
+  defaultChatId,
 });
 
-await bridge.start();
-await bot.launch();
+startPiBridge({
+  allowedUsers,
+  onText: telegram.onText,
+  sendToTelegram: telegram.sendToTelegram,
+});
+
+startJobs({
+  enabled: jobsEnabled,
+  jobs: [
+    createFetchHackerNewsJob({
+      intervalMinutes: jobIntervalMinutes,
+      sendToTelegram: telegram.sendToTelegram,
+    }),
+  ],
+});
+
+if (!jobsEnabled) {
+  console.log(
+    "jobs disabled (set TELEGRAM_CHAT_ID and keep JOBS_ENABLED not false to enable)",
+  );
+}
+
+await telegram.start();
 
 console.log("pi-telegram-bridge is running");
 
-process.once("SIGINT", () => {
-    bot.stop("SIGINT");
-});
-
-process.once("SIGTERM", () => {
-    bot.stop("SIGTERM");
-});
+process.once("SIGINT", () => telegram.stop("SIGINT"));
+process.once("SIGTERM", () => telegram.stop("SIGTERM"));

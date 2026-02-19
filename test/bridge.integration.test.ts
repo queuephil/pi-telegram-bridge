@@ -1,73 +1,37 @@
 import { describe, expect, mock, test } from "bun:test";
-import { createTelegramBridge } from "../src/telegram-bridge";
+import type { TelegramTextMessage } from "../src/telegram";
+import { startPiBridge } from "../src/pi";
 
-type TelegramTextContext = {
-    message: {
-        text: string;
-        chat: { id: number };
-        from: { id: number };
-    };
-};
+describe("PI bridge", () => {
+  test("allowed telegram user message is sent to PI and response is sent back", async () => {
+    let textHandler:
+      | ((message: TelegramTextMessage) => Promise<void>)
+      | undefined;
 
-type RpcPromptCommand = {
-    type: string;
-    message: string;
-};
+    const onText = mock(
+      (handler: (message: TelegramTextMessage) => Promise<void>) => {
+        textHandler = handler;
+      },
+    );
 
-describe("Integration: user -> telegram bot -> bridge -> pi RPC -> telegram -> user", () => {
-    test("mocked telegram text message runs the full flow end-to-end", async () => {
-        let textHandler:
-            | ((ctx: TelegramTextContext) => Promise<void>)
-            | undefined;
+    const sendPrompt = mock(async () => ({ text: "done" }));
+    const sendToTelegram = mock(async () => {});
 
-        const botOn = mock(
-            (
-                event: string,
-                handler: (ctx: TelegramTextContext) => Promise<void>,
-            ) => {
-                expect(event).toBe("text");
-                textHandler = handler;
-            },
-        );
-
-        const sendTelegramMessage = mock(
-            async (_chatId: number, _text: string) => {},
-        );
-
-        const sendRpcCommand = mock(async (command: RpcPromptCommand) => {
-            expect(command.type).toBe("prompt");
-            expect(command.message).toBe("please summarize this");
-            return { text: "done" };
-        });
-
-        const telegramBot = {
-            on: botOn,
-            telegram: {
-                sendMessage: sendTelegramMessage,
-            },
-        };
-
-        const bridge = createTelegramBridge({
-            allowedUsers: [42],
-            telegramBot,
-            sendRpcCommand,
-        });
-
-        await bridge.start();
-
-        expect(botOn).toHaveBeenCalledTimes(1);
-        expect(textHandler).toBeDefined();
-
-        await textHandler?.({
-            message: {
-                text: "please summarize this",
-                chat: { id: 1001 },
-                from: { id: 42 },
-            },
-        });
-
-        expect(sendRpcCommand).toHaveBeenCalledTimes(1);
-        expect(sendTelegramMessage).toHaveBeenCalledTimes(1);
-        expect(sendTelegramMessage).toHaveBeenCalledWith(1001, "done");
+    startPiBridge({
+      allowedUsers: [42],
+      onText,
+      sendToTelegram,
+      sendPrompt,
     });
+
+    await textHandler?.({
+      text: "please summarize this",
+      chatId: 1001,
+      fromUserId: 42,
+    });
+
+    expect(sendPrompt).toHaveBeenCalledTimes(1);
+    expect(sendToTelegram).toHaveBeenCalledTimes(1);
+    expect(sendToTelegram).toHaveBeenCalledWith("done", 1001);
+  });
 });
