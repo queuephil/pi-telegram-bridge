@@ -1,75 +1,34 @@
 # pi-telegram-bridge
 
-A small bridge that lets approved Telegram users talk to `pi-coding-agent` through RPC.
+A small Bun + TypeScript service that bridges Telegram messages to `pi-coding-agent` via RPC.
 
-## Problem this repo solves
+It listens to incoming Telegram text messages, allows only configured user IDs, forwards the prompt to `pi`, and sends the assistant response back to the same Telegram chat.
 
-This project connects `pi-coding-agent` with Telegram:
+## Quickstart
 
-1. A user sends a message to your Telegram bot.
-2. `pi-telegram-bridge` receives the message.
-3. `pi-telegram-bridge` forwards the message as an RPC prompt to `pi-coding-agent`.
-4. `pi-coding-agent` responds.
-5. `pi-telegram-bridge` sends that response back to the same Telegram chat.
-
-Only users listed in `ALLOWED_USERS` are allowed to interact with the bot.
-
-## Prerequisites
-
-- `pi-coding-agent` installed via Bun
-- `pi-telegram-bridge` installed via Bun
-- Environment variables:
-  - `TELEGRAM_BOT_TOKEN`
-  - `ALLOWED_USERS`
-
-## Installation
+1. Install dependencies
 
 ```bash
 bun install
 ```
 
-## Run
+2. Make sure `pi` is installed and available in your PATH
 
 ```bash
-TELEGRAM_BOT_TOKEN=... ALLOWED_USERS=123456 bun run index.ts
+which pi
 ```
 
-If startup succeeds, you should see:
+3. Create a Telegram bot and get a token (`TELEGRAM_BOT_TOKEN`)
 
-```text
-pi-telegram-bridge is running
-```
+4. Choose allowed Telegram user IDs (`ALLOWED_USERS`) as comma-separated list, e.g. `123456,789012`
 
-## How it works (high-level)
-
-- Telegram updates are consumed with [`telegraf`](https://github.com/telegraf/telegraf).
-- Incoming text messages from allowed users are transformed into RPC commands.
-- The bridge spawns:
+5. Run the bridge
 
 ```bash
-pi --mode rpc --no-session
+TELEGRAM_BOT_TOKEN=... ALLOWED_USERS=123456 bun run src/index.ts
 ```
 
-- It sends a prompt command, waits for the `agent_end` event, extracts assistant text, and replies in Telegram.
+6. Send a text message to your bot
 
-## Validation / health checks
-
-This repo includes validation tests for:
-
-- `pi` CLI availability
-- required environment variables
-- basic prompt communication with `pi`
-- RPC communication with `pi --mode rpc`
-- Telegram bot API communication (`getMe`)
-
-Run tests with:
-
-```bash
-bun test
-```
-
-## Notes
-
-- Non-text Telegram updates are ignored.
-- Messages from users not in `ALLOWED_USERS` are ignored.
-- This project currently runs in polling mode via Telegraf `bot.launch()`.
+- The message is forwarded to `pi`
+- The response is posted back to the same chat

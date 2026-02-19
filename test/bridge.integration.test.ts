@@ -1,5 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
-import { createTelegramBridge } from "./src/bridge";
+import { createTelegramBridge } from "../src/telegram-bridge";
 
 type TelegramTextContext = {
     message: {

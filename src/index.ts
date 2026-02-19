@@ -1,32 +1,7 @@
 import { Telegraf } from "telegraf";
-import { createTelegramBridge } from "./src/bridge";
-import { sendRpcCommandToPi } from "./src/pi-rpc";
-
-function requireEnv(name: string): string {
-    const value = process.env[name]?.trim();
-    if (!value) {
-        throw new Error(`Missing required env var: ${name}`);
-    }
-
-    return value;
-}
-
-function parseAllowedUsers(value: string): number[] {
-    const users = value
-        .split(",")
-        .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0)
-        .map((entry) => Number(entry))
-        .filter((id) => Number.isInteger(id));
-
-    if (users.length === 0) {
-        throw new Error(
-            "ALLOWED_USERS must contain at least one numeric Telegram user id",
-        );
-    }
-
-    return users;
-}
+import { parseAllowedUsers, requireEnv } from "./env";
+import { sendRpcCommandToPi } from "./pi-rpc-client";
+import { createTelegramBridge } from "./telegram-bridge";
 
 const telegramBotToken = requireEnv("TELEGRAM_BOT_TOKEN");
 const allowedUsers = parseAllowedUsers(requireEnv("ALLOWED_USERS"));
